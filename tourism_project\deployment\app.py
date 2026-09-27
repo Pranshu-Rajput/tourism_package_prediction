@@ -38,7 +38,7 @@ with col1:
         "Marital Status", ["Married", "Single", "Divorced", "Unmarried"]
     )
     designation = st.selectbox(
-        "Designation", ["Executive", "Manager", "Senior Manager", "AVP", "VP"]o
+        "Designation", ["Executive", "Manager", "Senior Manager", "AVP", "VP"]
     )
     monthly_income = st.number_input(
         "Monthly Income", min_value=1000, max_value=100000, value=23000, step=500
