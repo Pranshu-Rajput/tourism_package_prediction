@@ -1,7 +1,7 @@
 """Tune, evaluate, track, and export the Wellness Tourism purchase classifier."""
 
 import os
-os.environ.setdefault("GIT_PYTHON_REFRESH", "quiet")
+os.environ.setdefault("GIT_PYTHON_REFRESH", "quiet")   # quiet MLflow git warning if git is absent
 
 import io
 import contextlib
@@ -20,8 +20,9 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                              confusion_matrix)
 
 # ---------------------------------------------------------------- Tracking
+# The workflow starts an MLflow server on the runner at localhost:5000
 mlflow.set_tracking_uri("http://localhost:5000")
-mlflow.set_experiment("tourism-training-experiment")
+mlflow.set_experiment("tourism-training-experiment")   # separate from dev experiment
 
 # ---------------------------------------------------------------- Load splits (from workflow artifact)
 Xtrain = pd.read_csv("Xtrain.csv")
@@ -30,25 +31,39 @@ ytrain = pd.read_csv("ytrain.csv").squeeze()
 ytest  = pd.read_csv("ytest.csv").squeeze()
 
 # ---------------------------------------------------------------- Feature groups
-numeric_features = [
-    "Age", "CityTier", "DurationOfPitch", "NumberOfPersonVisiting",
-    "NumberOfFollowups", "PreferredPropertyStar", "NumberOfTrips",
-    "Passport", "PitchSatisfactionScore", "OwnCar",
-    "NumberOfChildrenVisiting", "MonthlyIncome",
+# Continuous measurements -> median + scaling
+continuous_features = ["Age", "DurationOfPitch", "NumberOfTrips", "MonthlyIncome"]
+
+# Numeric codes with few levels -> mode + one-hot
+discrete_cat_features = [
+    "CityTier", "NumberOfPersonVisiting", "NumberOfFollowups",
+    "PreferredPropertyStar", "Passport", "PitchSatisfactionScore",
+    "OwnCar", "NumberOfChildrenVisiting",
 ]
-categorical_features = [
+
+# Text categories -> mode + one-hot
+nominal_cat_features = [
     "TypeofContact", "Occupation", "Gender", "ProductPitched",
     "MaritalStatus", "Designation",
 ]
-numeric_features     = [c for c in numeric_features if c in Xtrain.columns]
-categorical_features = [c for c in categorical_features if c in Xtrain.columns]
+
+continuous_features   = [c for c in continuous_features if c in Xtrain.columns]
+discrete_cat_features = [c for c in discrete_cat_features if c in Xtrain.columns]
+nominal_cat_features  = [c for c in nominal_cat_features if c in Xtrain.columns]
 
 # ---------------------------------------------------------------- Preprocessor
+def categorical_pipe():
+    """Mode imputation followed by one-hot encoding (unknown levels -> all zeros)."""
+    return Pipeline([
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("onehot", OneHotEncoder(handle_unknown="ignore")),
+    ])
+
 preprocessor = ColumnTransformer([
     ("num", Pipeline([("imputer", SimpleImputer(strategy="median")),
-                      ("scaler", StandardScaler())]), numeric_features),
-    ("cat", Pipeline([("imputer", SimpleImputer(strategy="most_frequent")),
-                      ("onehot", OneHotEncoder(handle_unknown="ignore"))]), categorical_features),
+                      ("scaler", StandardScaler())]), continuous_features),
+    ("disc", categorical_pipe(), discrete_cat_features),
+    ("nom",  categorical_pipe(), nominal_cat_features),
 ])
 
 # ---------------------------------------------------------------- Model + grid
@@ -68,6 +83,7 @@ param_grid = {
 with mlflow.start_run(run_name="decision_tree_gridsearch"):
 
     # ------------------------------------------------------------ Tune
+    # n_jobs=-1 is safe on the Linux runner (uses all cores)
     grid_search = GridSearchCV(model_pipeline, param_grid, cv=5, n_jobs=-1, scoring="f1")
     grid_search.fit(Xtrain, ytrain)
 
@@ -112,8 +128,9 @@ with mlflow.start_run(run_name="decision_tree_gridsearch"):
     print(classification_report(ytest, ytest_pred, zero_division=0))
 
     # ------------------------------------------------------------ Save next to app.py
+    # The whole pipeline (preprocessing + tree) is saved, so the app can pass raw inputs
     os.makedirs("tourism_project/deployment", exist_ok=True)
     model_path = "tourism_project/deployment/best_tourism_model_v1.joblib"
     joblib.dump(best_model, model_path)
-    mlflow.log_artifact(model_path, artifact_path="model")
+    mlflow.log_artifact(model_path, artifact_path="model")   # traceability in MLflow
     print(f"Model saved to {model_path}")
