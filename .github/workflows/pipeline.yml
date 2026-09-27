@@ -7,11 +7,11 @@ on:
   workflow_dispatch:    # Manual "Run workflow" button
 
 permissions:
-  contents: write
+  contents: write       # lets the built-in GITHUB_TOKEN commit the trained model
 
 concurrency:
   group: tourism-pipeline
-  cancel-in-progress: true
+  cancel-in-progress: true   # a newer push cancels an older, still-running pipeline
 
 jobs:
   # ---------- JOB 1: Register Dataset ----------
@@ -19,13 +19,13 @@ jobs:
     name: Register Dataset
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4                 # clone the repo onto the runner
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r tourism_project/requirements.txt
-      - name: Register dataset
+      - name: Register dataset                    # schema validation + summary
         run: python tourism_project/model_building/data_register.py
       - name: Upload registered dataset
         uses: actions/upload-artifact@v4
@@ -36,7 +36,7 @@ jobs:
   # ---------- JOB 2: Data Preparation ----------
   data-preparation:
     name: Data Preparation
-    needs: register-dataset
+    needs: register-dataset                       # waits for Job 1
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,9 +45,9 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r tourism_project/requirements.txt
-      - name: Prepare data
+      - name: Prepare data                        # clean, impute, split
         run: python tourism_project/model_building/prep.py
-      - name: Upload train/test splits
+      - name: Upload train/test splits            # hand-off to Job 3
         uses: actions/upload-artifact@v4
         with:
           name: data-splits
@@ -60,7 +60,7 @@ jobs:
   # ---------- JOB 3: Model Training + MLflow Tracking ----------
   model-training:
     name: Model Training
-    needs: data-preparation
+    needs: data-preparation                       # waits for Job 2
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +73,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: data-splits
-      - name: Start MLflow tracking server
+      - name: Start MLflow tracking server        # background server on the runner
         run: |
           nohup mlflow ui --host 0.0.0.0 --port 5000 &
           sleep 10
@@ -84,7 +84,7 @@ jobs:
         with:
           name: trained-model
           path: tourism_project/deployment/best_tourism_model_v1.joblib
-      - name: Commit trained model
+      - name: Commit trained model                # makes the model available to Streamlit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -96,16 +96,16 @@ jobs:
   # ---------- JOB 4: Deployment Prep ----------
   deployment-prep:
     name: Deployment Prep
-    needs: model-training
+    needs: model-training                         # waits for Job 3
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: main                               # pull the commit that contains the new model
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install deployment dependencies
+      - name: Install deployment dependencies     # same versions Streamlit Cloud will use
         run: pip install -r tourism_project/deployment/requirements.txt
       - name: Verify the committed model loads and serves a prediction
         run: |
@@ -116,7 +116,7 @@ jobs:
               "Age": 35, "TypeofContact": "Self Enquiry", "CityTier": 1,
               "DurationOfPitch": 15, "Occupation": "Salaried", "Gender": "Female",
               "NumberOfPersonVisiting": 3, "NumberOfFollowups": 3,
-              "ProductPitched": "Deluxe", "PreferredPropertyStar": 3.0,
+              "ProductPitched": "Deluxe", "PreferredPropertyStar": 3,
               "MaritalStatus": "Married", "NumberOfTrips": 3, "Passport": 1,
               "PitchSatisfactionScore": 3, "OwnCar": 1,
               "NumberOfChildrenVisiting": 1, "Designation": "Manager",
