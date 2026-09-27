@@ -1,0 +1,127 @@
+name: Tourism Package Prediction CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main            # Automatically triggers on push to the main branch
+  workflow_dispatch:    # Manual "Run workflow" button
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tourism-pipeline
+  cancel-in-progress: true
+
+jobs:
+  # ---------- JOB 1: Register Dataset ----------
+  register-dataset:
+    name: Register Dataset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r tourism_project/requirements.txt
+      - name: Register dataset
+        run: python tourism_project/model_building/data_register.py
+      - name: Upload registered dataset
+        uses: actions/upload-artifact@v4
+        with:
+          name: registered-data
+          path: tourism_project/data/tourism.csv
+
+  # ---------- JOB 2: Data Preparation ----------
+  data-preparation:
+    name: Data Preparation
+    needs: register-dataset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r tourism_project/requirements.txt
+      - name: Prepare data
+        run: python tourism_project/model_building/prep.py
+      - name: Upload train/test splits
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-splits
+          path: |
+            Xtrain.csv
+            Xtest.csv
+            ytrain.csv
+            ytest.csv
+
+  # ---------- JOB 3: Model Training + MLflow Tracking ----------
+  model-training:
+    name: Model Training
+    needs: data-preparation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r tourism_project/requirements.txt
+      - name: Download train/test splits
+        uses: actions/download-artifact@v4
+        with:
+          name: data-splits
+      - name: Start MLflow tracking server
+        run: |
+          nohup mlflow ui --host 0.0.0.0 --port 5000 &
+          sleep 10
+      - name: Train model with MLflow tracking
+        run: python tourism_project/model_building/train.py
+      - name: Upload trained model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: tourism_project/deployment/best_tourism_model_v1.joblib
+      - name: Commit trained model
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tourism_project/deployment/best_tourism_model_v1.joblib
+          git commit -m "Add trained model [skip ci]" || echo "No changes to commit"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+  # ---------- JOB 4: Deployment Prep ----------
+  deployment-prep:
+    name: Deployment Prep
+    needs: model-training
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deployment dependencies
+        run: pip install -r tourism_project/deployment/requirements.txt
+      - name: Verify the committed model loads and serves a prediction
+        run: |
+          python - <<'PY'
+          import joblib, pandas as pd
+          model = joblib.load("tourism_project/deployment/best_tourism_model_v1.joblib")
+          sample = pd.DataFrame([{
+              "Age": 35, "TypeofContact": "Self Enquiry", "CityTier": 1,
+              "DurationOfPitch": 15, "Occupation": "Salaried", "Gender": "Female",
+              "NumberOfPersonVisiting": 3, "NumberOfFollowups": 3,
+              "ProductPitched": "Deluxe", "PreferredPropertyStar": 3.0,
+              "MaritalStatus": "Married", "NumberOfTrips": 3, "Passport": 1,
+              "PitchSatisfactionScore": 3, "OwnCar": 1,
+              "NumberOfChildrenVisiting": 1, "Designation": "Manager",
+              "MonthlyIncome": 23000,
+          }])
+          print("Smoke-test prediction:", int(model.predict(sample)[0]))
+          print("Model is ready for Streamlit Community Cloud.")
+          PY
