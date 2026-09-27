@@ -1,9 +1,4 @@
-# 🧳 Wellness Tourism Package — Purchase Prediction (MLOps CI/CD)
-
-![CI/CD Pipeline](https://-Rajput/tourism_package_prediction/actions/workflows/pipeline.yml/badge.svg
-![Python](https://img.shields.io/on-3.11-blue
-![scikit-learn](https:/badge/scikit--learn-1.6.0-orange
-![MLflow](https://img.shields.io/badge/MLflow-3.0.1-treamlit](https://img.shieldseamlit-1.43.2-FF4B4B
+#  Wellness Tourism Package — Purchase Prediction (MLOps CI/CD)
 
 An end-to-end MLOps pipeline that predicts whether a customer will buy the **Wellness Tourism Package** from **"Visit with Us"** *before* a salesperson contacts them. Data registration, preparation, model training, experiment tracking, and deployment are all automated with **GitHub Actions**, and the trained model is served through a **Streamlit** web app.
 
@@ -11,7 +6,7 @@ An end-to-end MLOps pipeline that predicts whether a customer will buy the **Wel
 
 ---
 
-## 📌 Business Problem
+##  Business Problem
 
 "Visit with Us" currently identifies potential customers manually. The process is inconsistent, slow, and error-prone, so sales calls go to the wrong people and campaigns underperform. This project replaces it with a scalable, automated system that:
 
@@ -21,7 +16,7 @@ An end-to-end MLOps pipeline that predicts whether a customer will buy the **Wel
 
 ---
 
-## 🏗️ Pipeline Architecture
+##  Pipeline Architecture
 
 ```
 push to main
@@ -46,7 +41,7 @@ push to main
 
 ---
 
-## 📁 Repository Structure
+##  Repository Structure
 
 ```
 tourism_package_prediction/
@@ -70,7 +65,7 @@ tourism_package_prediction/
 
 ---
 
-## 📊 Dataset
+##  Dataset
 
 The dataset has **4,128 records and 20 attributes** describing customer profiles and sales interactions. The target is `ProdTaken` (1 = purchased).
 
@@ -83,7 +78,7 @@ The dataset has **4,128 records and 20 attributes** describing customer profiles
 
 ---
 
-## ⚙️ Data Preparation
+##  Data Preparation
 
 - Dropped the identifier columns `CustomerID` and `Unnamed: 0`.
 - Standardised the `Gender` label (`"Fe Male"` → `"Female"`).
@@ -102,7 +97,7 @@ Preprocessing lives inside the scikit-learn `Pipeline`, so it is fitted separate
 
 ---
 
-## 🤖 Model & Results
+##  Model & Results
 
 **Model:** Decision Tree Classifier, tuned with `GridSearchCV`. The search covered 180 combinations with 5-fold CV and F1 scoring, and **every trial was logged to MLflow**.
 
@@ -128,7 +123,7 @@ Preprocessing lives inside the scikit-learn `Pipeline`, so it is fitted separate
 
 ---
 
-## 💡 Business Recommendations
+##  Business Recommendations
 
 1. **Prioritise model-flagged customers** for Wellness package calls, and send low-probability customers to lower-cost channels.
 2. **Design segment-specific campaigns** around the strongest drivers the model identifies.
@@ -138,7 +133,7 @@ Preprocessing lives inside the scikit-learn `Pipeline`, so it is fitted separate
 
 ---
 
-## 🚀 How to Run
+##  How to Run
 
 ### Reproduce locally
 ```bash
@@ -163,7 +158,7 @@ Push to `main`, or go to **Actions → Tourism Package Prediction CI/CD Pipeline
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 | Area | Tools |
 |---|---|
